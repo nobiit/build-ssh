@@ -1,0 +1,84 @@
+name: Build SSH Wire
+on:
+  push:
+    branches: [ master ]
+    paths:
+      - .github/workflows/build_sshwire.yml
+jobs:
+  build:
+    runs-on: macos-latest
+    env:
+      RUSTNDK_REPOSITORY: kennytm/rust-ios-android
+      KRPTCO_REPOSITORY: kryptco/krypton-android
+    steps:
+      - name: Setup Android NDK
+        run: |
+          echo "Download NDK ..."
+          wget -qO/tmp/ndk.zip https://dl.google.com/android/repository/android-ndk-r14b-$(uname -s)-$(uname -m).zip
+          echo "Unzip NDK ..."
+          unzip -qd ${ANDROID_HOME} /tmp/ndk.zip
+          export ANDROID_NDK_HOME=${ANDROID_HOME}/android-ndk-r14b
+          ls -l ${ANDROID_NDK_HOME}
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+      - name: Clone Krypton (Android)
+        run: |
+          git clone git@github.com:${KRPTCO_REPOSITORY}.git .
+          git submodule update --init
+      - name: Setup OpenSSH Fips
+        run: |
+          echo "Download OpenSSH Fips ..."
+          wget -qO/tmp/fips.zip https://www.openssl.org/source/openssl-fips-2.0.16.tar.gz
+          echo "Unzip OpenSSH Fips ..."
+          tar -xf /tmp/fips.zip
+      - name: Check Env
+        run: |
+          export ANDROID_SDK_ROOT=${ANDROID_HOME}
+          export ANDROID_NDK_ROOT=${ANDROID_SDK_ROOT}/android-ndk-r14b
+          bash setenv-android.sh
+      - name: Clone Rust NDK
+        run: |
+          git clone git@github.com:${RUSTNDK_REPOSITORY}.git ndk
+          cd ndk
+          git submodule update --init
+      - name: Create NDK Standalone
+        run: |
+          export ANDROID_SDK_ROOT=${ANDROID_HOME}
+          export ANDROID_NDK_HOME=${ANDROID_SDK_ROOT}/android-ndk-r14b
+          cd ndk
+          ./create-ndk-standalone.sh
+      - name: Artifact NDK
+        uses: actions/upload-artifact@v1
+        with:
+          name: ndk
+          path: ndk
+      - name: Setup Target
+        run: |
+          rustup target add aarch64-apple-ios x86_64-apple-ios
+          rustup target add aarch64-linux-android x86_64-linux-android i686-linux-android armv7-linux-androideabi
+          cd ndk
+          cat cargo-config.toml >> ~/.cargo/config
+      - name: Setup Cargo
+        run: |
+          cargo install cargo-lipo
+      - name: Build
+        run: |
+          export ANDROID_NDK=$(pwd)/ndk/NDK
+          cd ssh-wire
+          bash ./build.sh
+      - name: Artifact SSH Wire
+        uses: actions/upload-artifact@v1
+        with:
+          name: ssh_wire
+          path: ssh-wire
+      - name: Assemble APK
+        run: |
+          gradlew assembleDebug
+      - name: Artifact Project
+        uses: actions/upload-artifact@v1
+        with:
+          name: project
+          path: .
