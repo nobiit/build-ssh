@@ -50,11 +50,6 @@ jobs:
           export ANDROID_NDK_HOME=${ANDROID_SDK_ROOT}/android-ndk-r14b
           cd ndk
           ./create-ndk-standalone.sh
-      - name: Artifact NDK
-        uses: actions/upload-artifact@v1
-        with:
-          name: ndk
-          path: ndk
       - name: Setup Target
         run: |
           rustup target add aarch64-apple-ios x86_64-apple-ios
