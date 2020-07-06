@@ -71,6 +71,7 @@ jobs:
           path: ssh-wire
       - name: Assemble APK
         run: |
+          gradle wrapper
           ./gradlew assembleDebug
       - name: Artifact Project
         uses: actions/upload-artifact@v1
